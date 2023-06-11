@@ -28,7 +28,7 @@ VOTES_WEIGHT = 0.3
 # Add picks for other categories?
 # Get films for the whole weekend
 # Schedule to run on Friday morning
-# Ensure cartelera has one row per scheduled slot
+# Deal with more than one showtime per film
 
 
 # get today's films from the cineteca
@@ -126,6 +126,9 @@ def main():
     # Extract relevant info
     film_info = extract_info(inner_texts)
 
+    # remove films with no showtime
+    film_info = [ i for i in film_info if "showtime" in i ]
+    
     # adds date to showtime, should probably improve
     for i in film_info:
         i["showtime"] = target_date + " " + i["showtime"]
