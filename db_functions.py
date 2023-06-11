@@ -82,3 +82,24 @@ def write_api_data_to_db(conn, api_response):
 
     except Error as e:
         print(e)
+
+
+@with_connection
+def add_subscriber(conn, email):
+    try:
+        c = conn.cursor()
+        c.execute("INSERT OR IGNORE INTO subscribers (email) VALUES (?)", (email,))
+    except Error as e:
+        print(e)
+
+
+@with_connection
+def get_all_subscribers(conn):
+    try:
+        c = conn.cursor()
+        c.execute("SELECT email FROM subscribers")
+        results = c.fetchall()
+        # return as list of strings
+        return [i[0] for i in results]
+    except Error as e:
+        print(e)

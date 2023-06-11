@@ -30,3 +30,9 @@ CREATE TABLE film_info (
 );
 
 ALTER TABLE cartelera ADD COLUMN showtime STRING;
+
+CREATE TABLE subscribers (
+    id INTEGER PRIMARY KEY,
+    email STRING,
+    created_at DATE DEFAULT (DATE('now'))
+);

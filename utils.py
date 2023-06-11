@@ -115,12 +115,6 @@ def get_film_TMDB_info(title, year=""):
     return json.loads(response.content)
 
 
-def film_score(rating, votes, min_rating, max_rating, min_votes, max_votes):
-    r = (rating - min_rating) / (max_rating - min_rating)
-    v = (votes - min_votes) / (max_votes - min_votes)
-    return r * RATING_WEIGHT + v * VOTES_WEIGHT
-
-
 # Sends email to a single address
 def send_email(subject, message, to_addr):
     msg = MIMEText(message)
@@ -134,6 +128,38 @@ def send_email(subject, message, to_addr):
     server.login(LOGIN_EMAIL, GMAIL_APP_PASS)
     server.sendmail(FROM_ADDRESS, [to_addr], msg.as_string())
     server.quit()
+
+
+def film_score(rating, votes, min_rating, max_rating, min_votes, max_votes):
+    r = (rating - min_rating) / (max_rating - min_rating)
+    v = (votes - min_votes) / (max_votes - min_votes)
+    return r * RATING_WEIGHT + v * VOTES_WEIGHT
+
+
+# takes film info, return text for email
+def prepare_text(film_info):
+    # Compute the minimum and maximum ratings and votes for normalization
+    min_rating = min(film.get('rating', 0) for film in film_info)
+    max_rating = max(film.get('rating', 0) for film in film_info)
+    min_votes = min(film.get('votes', 0) for film in film_info)
+    max_votes = max(film.get('votes', 0) for film in film_info)
+
+    sorted_films = sorted(
+        film_info,
+        key=lambda x: film_score(x.get("rating", 0), x.get("votes", 0),
+                                 min_rating, max_rating, min_votes, max_votes),
+        reverse=True)
+
+    top_5 = "Top 5:\n\n"
+    for i in sorted_films[:5]:
+        top_5 += (f"{i['cineteca_title']}:\n"
+                  f"- Director: {i['cineteca_director']}\n"
+                  f"- Año: {i['cineteca_year']}\n"
+                  f"- Rating: {i['rating']}\n"
+                  f"- Número de votos: {i['votes']}\n"
+                  f"- Horario: {i['cineteca_showtime']}\n")
+
+    return top_5
 
 
 def main():
@@ -191,16 +217,12 @@ def main():
                 "cineteca_year": film["year"]
             })
 
-    # Compute the minimum and maximum ratings and votes for normalization
-    min_rating = min(film.get('rating', 0) for film in info_for_text)
-    max_rating = max(film.get('rating', 0) for film in info_for_text)
-    min_votes = min(film.get('votes', 0) for film in info_for_text)
-    max_votes = max(film.get('votes', 0) for film in info_for_text)
+    text = prepare_text(info_for_text)
+    
+    subs = get_all_subscribers()
+    for i in subs:
+        send_email(f"Top 5 Cineteca, {target_date}", text, i)
 
-    sorted_films = sorted(
-        info_for_text,
-        key=lambda x: film_score(x.get("rating", 0), x.get("votes", 0),
-                                 min_rating, max_rating, min_votes, max_votes),
-        reverse=True)
+    print(text)
+    return
 
-    print(sorted_films)
