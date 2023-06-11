@@ -2,14 +2,19 @@ import requests
 import re
 import os
 import json
+import smtplib
 from bs4 import BeautifulSoup
 from datetime import datetime
 from db_functions import *
+from email.mime.text import MIMEText
 
 TMDB_KEY = os.environ['TMDB_KEY']
 TMDB_BASE_URL = "https://api.themoviedb.org/3/"
 OLD_CINETECA_URL = "https://www.cinetecanacional.net/controlador.php?opcion=carteleraDia"
 NEW_CINETECA_URL = "https://www.cinetecanacional.net/cartelera.php"
+GMAIL_APP_PASS = os.environ['GMAIL_PASS']
+LOGIN_EMAIL = os.environ['LOGIN_EMAIL']
+FROM_ADDRESS = os.environ['FROM_ADDRESS']
 
 RATING_WEIGHT = 0.7
 VOTES_WEIGHT = 0.3
@@ -23,7 +28,7 @@ VOTES_WEIGHT = 0.3
 
 # TODO
 # Add trailer link
-# Classify films in time categories (e.g. evening)
+# Classify films in time categories (e.g. evening?
 # Add picks for times?
 # Add picks for other categories?
 # Get films for the whole weekend
@@ -116,6 +121,21 @@ def film_score(rating, votes, min_rating, max_rating, min_votes, max_votes):
     return r * RATING_WEIGHT + v * VOTES_WEIGHT
 
 
+# Sends email to a single address
+def send_email(subject, message, to_addr):
+    msg = MIMEText(message)
+    msg['Subject'] = subject
+    msg['From'] = FROM_ADDRESS
+    msg['To'] = to_addr
+
+    server = smtplib.SMTP("smtp.gmail.com", 587)
+    server.ehlo()
+    server.starttls()
+    server.login(LOGIN_EMAIL, GMAIL_APP_PASS)
+    server.sendmail(FROM_ADDRESS, [to_addr], msg.as_string())
+    server.quit()
+
+
 def main():
 
     target_date = datetime.now().date().isoformat()
@@ -127,8 +147,8 @@ def main():
     film_info = extract_info(inner_texts)
 
     # remove films with no showtime
-    film_info = [ i for i in film_info if "showtime" in i ]
-    
+    film_info = [i for i in film_info if "showtime" in i]
+
     # adds date to showtime, should probably improve
     for i in film_info:
         i["showtime"] = target_date + " " + i["showtime"]
