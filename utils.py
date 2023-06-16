@@ -86,7 +86,11 @@ def extract_info(films):
         if year_search:
             # Split the countries and year by comma, then extract the last element (year)
             year_country = year_search.group(1).split(',')
-            film_info['year'] = int(year_country[-1].strip())
+            try:
+                film_info["year"] = int(year_country[-1].strip())
+            except:
+                print(f"No year available for {film_info['title']}")
+                film_info["year"] = ""
 
         # Extract the film's showtime from the next element in the list
         if i + 1 < len(films):  # Ensure we're not exceeding list bounds
@@ -152,36 +156,28 @@ def prepare_text(film_info):
 
     top_5 = "Top 5:\n\n"
     for i in sorted_films[:5]:
-        top_5 += (f"{i['cineteca_title']}:\n"
+        top_5 += (f"{i['cineteca_title']} ({i['result_title']}):\n"
                   f"- Director: {i['cineteca_director']}\n"
                   f"- Año: {i['cineteca_year']}\n"
                   f"- Rating: {i['rating']}\n"
                   f"- Número de votos: {i['votes']}\n"
                   f"- Horario: {i['cineteca_showtime']}\n")
 
+    # internal for testing/logging
+    top_10 = "Top 10:\n\n"
+    for i in sorted_films[:10]:
+        top_10 += (f"{i['cineteca_title']} ({i['result_title']}):\n"
+                   f"- Director: {i['cineteca_director']}\n"
+                   f"- Año: {i['cineteca_year']}\n"
+                   f"- Rating: {i['rating']}\n"
+                   f"- Número de votos: {i['votes']}\n"
+                   f"- Horario: {i['cineteca_showtime']}\n")
+    print(top_10)
+
     return top_5
 
 
-def main():
-
-    target_date = datetime.now().date().isoformat()
-
-    # Get films currently showing
-    inner_texts = get_cineteca_films(target_date)
-
-    # Extract relevant info
-    film_info = extract_info(inner_texts)
-
-    # remove films with no showtime
-    film_info = [i for i in film_info if "showtime" in i]
-
-    # adds date to showtime, should probably improve
-    for i in film_info:
-        i["showtime"] = target_date + " " + i["showtime"]
-
-    # Write to DB
-    write_to_cartelera(film_info)
-
+def enrich_info(film_info):
     info_for_text = []
     # Loop over every film in cartelera
     for film in film_info:
@@ -216,13 +212,38 @@ def main():
                 "cineteca_director": film["director"],
                 "cineteca_year": film["year"]
             })
+    return info_for_text
 
+
+def main():
+
+    target_date = datetime.now().date().isoformat()
+
+    # Get films currently showing
+    inner_texts = get_cineteca_films(target_date)
+
+    # Extract relevant info
+    film_info = extract_info(inner_texts)
+
+    # remove films with no showtime
+    film_info = [i for i in film_info if "showtime" in i]
+
+    # adds date to showtime, should probably improve
+    for i in film_info:
+        i["showtime"] = target_date + " " + i["showtime"]
+
+    # Write Cineteca info to DB
+    write_to_cartelera(film_info)
+
+    # Add TMDB data to Cineteca info
+    info_for_text = enrich_info(film_info)
+
+    # Prepare email body
     text = prepare_text(info_for_text)
-    
+
+    # Send email to each email in subscriber table
     subs = get_all_subscribers()
     for i in subs:
         send_email(f"Top 5 Cineteca, {target_date}", text, i)
 
-    print(text)
     return
-
