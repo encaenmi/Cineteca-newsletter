@@ -4,7 +4,7 @@ import os
 import json
 import smtplib
 from bs4 import BeautifulSoup
-from datetime import datetime
+from datetime import datetime, timedelta
 from db_functions import *
 from email.mime.text import MIMEText
 
@@ -15,6 +15,9 @@ NEW_CINETECA_URL = "https://www.cinetecanacional.net/cartelera.php"
 GMAIL_APP_PASS = os.environ['GMAIL_PASS']
 LOGIN_EMAIL = os.environ['LOGIN_EMAIL']
 FROM_ADDRESS = os.environ['FROM_ADDRESS']
+
+SEND_EMAIL = True
+NUM_DAYS_TO_GET = 2
 
 RATING_WEIGHT = 0.7
 VOTES_WEIGHT = 0.3
@@ -119,18 +122,18 @@ def get_film_TMDB_info(title, year=""):
     return json.loads(response.content)
 
 
-# Sends email to a single address
-def send_email(subject, message, to_addr):
+# Sends email to list of addresses
+def send_email(subject, message, to_addr_list):
     msg = MIMEText(message)
     msg['Subject'] = subject
     msg['From'] = FROM_ADDRESS
-    msg['To'] = to_addr
+    msg['To'] = ", ".join(to_addr_list)
 
     server = smtplib.SMTP("smtp.gmail.com", 587)
     server.ehlo()
     server.starttls()
     server.login(LOGIN_EMAIL, GMAIL_APP_PASS)
-    server.sendmail(FROM_ADDRESS, [to_addr], msg.as_string())
+    server.sendmail(FROM_ADDRESS, to_addr_list, msg.as_string())
     server.quit()
 
 
@@ -215,9 +218,7 @@ def enrich_info(film_info):
     return info_for_text
 
 
-def main():
-
-    target_date = datetime.now().date().isoformat()
+def get_text_for_date(target_date):
 
     # Get films currently showing
     inner_texts = get_cineteca_films(target_date)
@@ -241,9 +242,30 @@ def main():
     # Prepare email body
     text = prepare_text(info_for_text)
 
-    # Send email to each email in subscriber table
-    subs = get_all_subscribers()
-    for i in subs:
-        send_email(f"Top 5 Cineteca, {target_date}", text, i)
+    return text
+
+
+def main():
+
+    today = datetime.now().date()
+    texts = []
+    for i in range(0, NUM_DAYS_TO_GET):
+        target_date = today + timedelta(days=i)
+        target_date = target_date.isoformat()
+        texts.append([target_date, get_text_for_date(target_date)])
+
+    if SEND_EMAIL:
+        # Send email to each email in subscriber table
+        subs = get_all_subscribers()
+
+        # Add the prepared text for each day
+        text = ""
+        for i in texts:
+            text += f"{i[0]}\n"
+            text += i[1]
+            text += "\n"
+
+        # send email using the text for all days
+        send_email(f"Top 5 Cineteca", text, subs)
 
     return
